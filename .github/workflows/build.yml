@@ -1,0 +1,66 @@
+name: build-riot-as6507-mrs
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 每天 02:17 UTC 运行一次（你可改）
+    - cron: "17 2 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch AS6507 prefixes (RIPEstat)
+        run: |
+          python3 scripts/fetch_as6507_prefixes.py
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Download mihomo (latest release) and build .mrs
+        run: |
+          set -euo pipefail
+
+          REL_JSON="$(curl -fsSL https://api.github.com/repos/MetaCubeX/mihomo/releases/latest)"
+          ASSET_URL="$(echo "$REL_JSON" | jq -r '.assets[].browser_download_url' | grep -E 'mihomo-linux-amd64-compatible-.*\.gz$' | head -n 1)"
+
+          if [ -z "${ASSET_URL}" ]; then
+            echo "Failed to locate mihomo linux amd64 compatible asset in latest release."
+            echo "$REL_JSON" | jq -r '.tag_name, (.assets[].name)'
+            exit 1
+          fi
+
+          echo "Downloading: $ASSET_URL"
+          curl -fL "$ASSET_URL" -o mihomo.gz
+          gzip -d mihomo.gz
+          chmod +x mihomo
+          ./mihomo -v || true
+
+          # convert-ruleset: mihomo convert-ruleset ipcidr text IN OUT.mrs
+          ./mihomo convert-ruleset ipcidr text output/riot_as6507_ipcidr.txt output/riot_as6507.mrs
+
+      - name: Commit and push if changed
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add output/riot_as6507_ipcidr.txt output/riot_as6507.mrs output/riot_as6507.meta.json
+            git commit -m "chore: update AS6507 prefixes and rebuild mrs"
+            git push
+          else
+            echo "No changes."
+          fi
