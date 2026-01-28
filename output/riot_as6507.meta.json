@@ -2,7 +2,7 @@
   "source": "RIPEstat announced-prefixes",
   "source_url": "https://stat.ripe.net/data/announced-prefixes/data.json?resource=AS6507",
   "asn": "AS6507",
-  "generated_at_utc": "2026-01-27T03:54:52.439761+00:00",
+  "generated_at_utc": "2026-01-28T03:52:48.501867+00:00",
   "prefix_count": 36,
   "prefixes": [
     "43.229.64.0/22",
